@@ -29,6 +29,7 @@ x86/
 [Aa][Rr][Mm]64/
 [Aa][Rr][Mm]64[Ee][Cc]/
 bld/
+[Bb]in/
 [Oo]bj/
 [Oo]ut/
 [Ll]og/
@@ -330,22 +331,16 @@ node_modules/
 _Pvt_Extensions
 
 # Paket dependency manager
-**/.paket/paket.exe
 paket-files/
 
 # FAKE - F# Make
-**/.fake/
 
 # CodeRush personal settings
-**/.cr/personal
 
 # Python Tools for Visual Studio (PTVS)
-**/__pycache__/
 *.pyc
 
 # Cake - Uncomment if you are using it
-#tools/**
-#!tools/packages.config
 
 # Tabs Studio
 *.tss
@@ -376,13 +371,8 @@ MSBuild_Logs/
 *.nvuser
 
 # MFractors (Xamarin productivity tool) working folder
-**/.mfractor/
 
 # Local History for Visual Studio
-**/.localhistory/
-
-# Visual Studio History (VSHistory) files
-.vshistory/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
@@ -391,7 +381,6 @@ healthchecksdb
 MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
-**/.ionide/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd

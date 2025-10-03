@@ -1,0 +1,41 @@
+{
+  "desktops": [
+    {
+      "index": 0,
+      "name": "Thing 1"
+    },
+    {
+      "index": 1,
+      "name": "Thing 2"
+    }
+  ],
+  "apps": [
+    {
+      "name": "Outlook",
+      "path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+      "desktop": "Thing 1"
+    },
+    {
+      "name": "Teams (new)",
+      "path": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\ms-teams.exe",
+      "desktop": "Thing 1"
+    },
+    {
+      "name": "Chrome",
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "args": "--profile-directory=\"Default\"",
+      "desktop": "Thing 2"
+    },
+    {
+      "name": "GitHub Desktop",
+      "path": "%LOCALAPPDATA%\\GitHubDesktop\\GitHubDesktop.exe",
+      "desktop": "Thing 2"
+    },
+    {
+      "name": "Obsidian",
+      "path": "%LOCALAPPDATA%\\Obsidian\\Obsidian.exe",
+      "desktop": "Thing 2"
+    }
+  ],
+  "launchDelayMs": 2500
+}
