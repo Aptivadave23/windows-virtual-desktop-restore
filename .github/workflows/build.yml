@@ -1,4 +1,6 @@
 name: Build & Release
+permissions:
+  contents: write   # <-- needed to create releases
 
 on:
   push:
