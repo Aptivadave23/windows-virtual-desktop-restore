@@ -1,12 +1,14 @@
-﻿[![License: Unlicense](https://img.shields.io/badge/License-Unlicense-blue.svg)](LICENSE)
+﻿[![Build](https://img.shields.io/github/actions/workflow/status/Aptivadave23/windows-virtual-desktop-restore/build.yml?branch=main)](https://github.com/Aptivadave23/windows-virtual-desktop-restore/actions)
+[![Latest release](https://img.shields.io/github/v/release/Aptivadave23/windows-virtual-desktop-restore)](https://github.com/Aptivadave23/windows-virtual-desktop-restore/releases)
+[![License: Unlicense](https://img.shields.io/badge/License-Unlicense-blue.svg)](LICENSE)
 
 # Restore Virtual Desktop Workspaces for Windows 11
 
 This is a tiny Windows helper that opens your daily apps on specific **Windows 11 virtual desktops** whenever you sign in.
 
 - **Virtual-desktop aware** (e.g., “Thing 1”, “Thing 2”, or whatever you want to name your desktops)
-- **Per‑user autostart** via the built‑in `--install` mode (no admin required)
-- **Single‑instance + debounce** to prevent duplicate runs at logon
+- **Per-user autostart** via the built-in `--install` mode (no admin required)
+- **Single-instance + debounce** to prevent duplicate runs at logon
 - **Lightweight logging** to `%LOCALAPPDATA%\BootWorkspace\bootworkspace.log`
 
 > The executable name depends on your project (e.g., `StartUp.exe`).  
@@ -29,7 +31,29 @@ This is a tiny Windows helper that opens your daily apps on specific **Windows 1
 
 ---
 
-## Quick Start
+## Releases
+
+### Download & install (no build required)
+1. Go to the **[Releases](https://github.com/Aptivadave23/windows-virtual-desktop-restore/releases)** page and download the latest `BootWorkspace.zip`.
+2. Unzip it anywhere.
+3. (Optional) Edit `workspace.json` to customize what launches and on which desktops.
+4. From the unzipped folder, run:
+   ```powershell
+   .\StartUp.exe --install ".\workspace.json"
+   ```
+   This copies the app to `%LOCALAPPDATA%\BootWorkspace` and creates a Startup shortcut (`shell:startup → Boot Workspace.lnk`).
+
+To uninstall later:
+```powershell
+%LOCALAPPDATA%\BootWorkspace\StartUp.exe --uninstall
+```
+
+> Windows SmartScreen may warn about running an unsigned app. Choose **More info → Run anyway** if you trust it.  
+> If your policy blocks downloaded files, run `Unblock-File .\StartUp.exe` first.
+
+---
+
+## Quick Start (build from source)
 
 1) **Build** (or Publish) the project:
 ```powershell
@@ -67,11 +91,11 @@ Place this file **beside the EXE** before running `--install`. Example:
     { "index": 1, "name": "Thing 2" }
   ],
   "apps": [
-    { "name": "Outlook", "path": "C:\\\\Program Files\\\\Microsoft Office\\\\root\\\\Office16\\\\OUTLOOK.EXE", "desktop": "Thing 1" },
-    { "name": "Teams (new)", "path": "%LOCALAPPDATA%\\\\Microsoft\\\\WindowsApps\\\\ms-teams.exe", "desktop": "Thing 1" },
-    { "name": "Chrome", "path": "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe", "args": "--profile-directory=\\"Default\\"", "desktop": "Thing 2" },
-    { "name": "GitHub Desktop", "path": "%LOCALAPPDATA%\\\\GitHubDesktop\\\\GitHubDesktop.exe", "desktop": "Thing 2" },
-    { "name": "Obsidian", "path": "%LOCALAPPDATA%\\\\Obsidian\\\\Obsidian.exe", "desktop": "Thing 2" }
+    { "name": "Outlook", "path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE", "desktop": "Thing 1" },
+    { "name": "Teams (new)", "path": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\ms-teams.exe", "desktop": "Thing 1" },
+    { "name": "Chrome", "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "args": "--profile-directory=\"Default\"", "desktop": "Thing 2" },
+    { "name": "GitHub Desktop", "path": "%LOCALAPPDATA%\\GitHubDesktop\\GitHubDesktop.exe", "desktop": "Thing 2" },
+    { "name": "Obsidian", "path": "%LOCALAPPDATA%\\Obsidian\\Obsidian.exe", "desktop": "Thing 2" }
   ],
   "launchDelayMs": 1500
 }
@@ -82,16 +106,28 @@ Place this file **beside the EXE** before running `--install`. Example:
 - `apps[]`:
   - `name` — label for logging
   - `path` — full path or env-var path  
-    (URIs like `microsoft-edge:https://...` and `shell:AppsFolder\\...` are supported)
+    (URIs like `microsoft-edge:https://...` and `shell:AppsFolder\...` are supported)
   - `args` — optional command-line args
   - `desktop` — target desktop (accepts `"Thing 2"`, `"Desktop 2"`, or `"1"`)
 - `launchDelayMs` — pause between launches (ms)
 
 You can edit `%LOCALAPPDATA%\BootWorkspace\workspace.json` anytime after installation.
 
+---
+
 ## PowerShell Installation
-Alternatively, you can install via PowerShell using the provided script, `release-publish.ps1', found in the project.
-This script automates the build and installation process.
+
+You have two options:
+
+### A) Use the provided script (recommended)
+The repo includes **`release-publish.ps1`**, which builds, publishes, ensures `workspace.json`, and runs the self-installer for you:
+
+```powershell
+# PowerShell 7+
+pwsh -File .\release-publish.ps1 -Install
+```
+
+### B) Manual publish & install
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained true `
   -p:PublishSingleFile=true -p:PublishTrimmed=false
@@ -99,8 +135,8 @@ dotnet publish -c Release -r win-x64 --self-contained true `
 # then:
 .\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\StartUp.exe --install ".\workspace.json"
 ```
----
 
+---
 
 ## How it Works
 
@@ -147,7 +183,7 @@ To remove, run `--uninstall` (deletes the Startup shortcut and the install folde
 
 ## Contributing
 
-Issues and PRs welcome. If you add features (e.g., window sizing/monitor placement), keep the defaults simple and safe for first‑run.
+Issues and PRs welcome. If you add features (e.g., window sizing/monitor placement), keep the defaults simple and safe for first-run.
 
 ---
 
@@ -164,4 +200,3 @@ SPDX-License-Identifier: Unlicense
 ## Credits
 
 - Virtual desktop wrapper: [`Slions.VirtualDesktop`](https://www.nuget.org/packages/Slions.VirtualDesktop)
-
