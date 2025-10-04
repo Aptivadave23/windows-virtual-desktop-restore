@@ -5,7 +5,7 @@ on:
     tags: ["v*.*.*"]
   pull_request:
     branches: ["main"]
-  workflow_dispatch:            # <-- enables the Run workflow button
+  workflow_dispatch:
     inputs:
       configuration:
         description: Build config
@@ -19,22 +19,52 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+      RID: ${{ inputs.rid || 'win-x64' }}
+      TFM: net8.0-windows10.0.19041.0
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.x"
+
       - name: Restore
         run: dotnet restore ./StartUp.sln
-      - name: Publish
-        run: >
-          dotnet publish ./StartUp.csproj
-          -c ${{ inputs.configuration || 'Release' }}
-          -r ${{ inputs.rid || 'win-x64' }}
-          --self-contained true
-          -p:PublishSingleFile=true -p:PublishTrimmed=false
+        shell: pwsh
+
+      - name: Publish (self-contained, single file)
+        run: |
+          dotnet publish ./StartUp.csproj `
+            -c $env:CONFIGURATION `
+            -r $env:RID `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:PublishTrimmed=false
+        shell: pwsh
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: BootWorkspace-publish
-          path: **/bin/${{ inputs.configuration || 'Release' }}/net8.0-windows10.0.19041.0/${{ inputs.rid || 'win-x64' }}/publish/**
+          path: "**/bin/${{ env.CONFIGURATION }}/${{ env.TFM }}/${{ env.RID }}/publish/**"
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: BootWorkspace-publish
+          path: publish
+
+      - name: Zip publish
+        run: Compress-Archive -Path publish/* -DestinationPath BootWorkspace.zip
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: BootWorkspace.zip
