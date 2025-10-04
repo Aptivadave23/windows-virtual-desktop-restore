@@ -1,0 +1,45 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+      - name: Restore
+        run: dotnet restore ./StartUp.sln
+      - name: Publish (self-contained, single file)
+        run: >
+          dotnet publish ./StartUp.csproj -c Release -r win-x64
+          --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BootWorkspace-publish
+          path: |
+            **/bin/Release/net8.0-windows10.0.19041.0/win-x64/publish/**
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: BootWorkspace-publish
+          path: publish
+      - name: Zip publish
+        run: Compress-Archive -Path publish/* -DestinationPath BootWorkspace.zip
+        shell: pwsh
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: BootWorkspace.zip
