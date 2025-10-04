@@ -89,7 +89,18 @@ Place this file **beside the EXE** before running `--install`. Example:
 
 You can edit `%LOCALAPPDATA%\BootWorkspace\workspace.json` anytime after installation.
 
+## PowerShell Installation
+Alternatively, you can install via PowerShell using the provided script, `release-publish.ps1', found in the project.
+This script automates the build and installation process.
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true -p:PublishTrimmed=false
+
+# then:
+.\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\StartUp.exe --install ".\workspace.json"
+```
 ---
+
 
 ## How it Works
 
