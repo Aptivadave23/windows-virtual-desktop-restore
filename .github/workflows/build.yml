@@ -1,72 +1,64 @@
-name: Build & Release
+﻿name: Build & Release
 permissions:
-  contents: write   # <-- needed to create releases
+  contents: write   # create tags, commits, releases
 
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main, beta]  # main = stable, beta = pre-releases
   pull_request:
-    branches: ["main"]
-  workflow_dispatch:
-    inputs:
-      configuration:
-        description: Build config
-        default: Release
-        required: false
-      rid:
-        description: Runtime (RID)
-        default: win-x64
-        required: false
+    branches: [main]
+  workflow_dispatch: {}
 
 jobs:
+  # PRs: compile only (no release)
   build:
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: windows-latest
-    env:
-      CONFIGURATION: ${{ inputs.configuration || 'Release' }}
-      RID: ${{ inputs.rid || 'win-x64' }}
-      TFM: net8.0-windows10.0.19041.0
     steps:
       - uses: actions/checkout@v4
-
+        with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.x"
-
+        with: { dotnet-version: '8.x' }
       - name: Restore
+        shell: pwsh
         run: dotnet restore ./StartUp.sln
+      - name: Build
         shell: pwsh
+        run: dotnet build ./StartUp.sln -c Release --no-restore
 
-      - name: Publish (self-contained, single file)
-        run: |
-          dotnet publish ./StartUp.csproj `
-            -c $env:CONFIGURATION `
-            -r $env:RID `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:PublishTrimmed=false
-        shell: pwsh
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: BootWorkspace-publish
-          path: "**/bin/${{ env.CONFIGURATION }}/${{ env.TFM }}/${{ env.RID }}/publish/**"
-
+  # Pushes to main/beta (or manual dispatch): semantic-release drives everything
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: windows-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          name: BootWorkspace-publish
-          path: publish
+          fetch-depth: 0   # semantic-release needs tags/history
 
-      - name: Zip publish
-        run: Compress-Archive -Path publish/* -DestinationPath BootWorkspace.zip
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Install semantic-release + plugins
         shell: pwsh
+        run: |
+            npm i -D semantic-release `
+            '@semantic-release/commit-analyzer' `
+            '@semantic-release/release-notes-generator' `
+            '@semantic-release/changelog' `
+            '@semantic-release/exec' `
+            '@semantic-release/git' `
+            '@semantic-release/github'
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: BootWorkspace.zip
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
