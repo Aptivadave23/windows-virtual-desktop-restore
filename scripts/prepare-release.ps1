@@ -1,58 +1,92 @@
 param(
-  [Parameter(Mandatory = $true)][string]$Version,  # e.g., 0.2.0 or 0.2.0-beta.1
+  [Parameter(Mandatory = $true)][string]$Version,           # e.g., 0.2.0 or 0.2.0-beta.1
   [string]$Csproj = "StartUp.csproj",
   [string]$Configuration = "Release",
   [string]$Rid = "win-x64",
   [string]$Tfm = "net8.0-windows10.0.19041.0"
 )
 
+$ErrorActionPreference = 'Stop'
 Write-Host "Preparing release for version $Version"
 
+# ---- Resolve absolute paths so Split-Path works ----
+$csprojFull = (Resolve-Path -LiteralPath $Csproj).Path
+$projDir    = Split-Path -Parent $csprojFull
+
 $IsPre   = $Version -like "*-*"
-$BaseVer = ($Version -split "-", 2)[0]    # numeric part only
+$BaseVer = ($Version -split "-", 2)[0]   # numeric part only
 [version]$Base = $BaseVer
 $AsmVer  = "$($Base.Major).$($Base.Minor).$($Base.Build).0"
 
-if (-not (Test-Path $Csproj)) { throw "Cannot find $Csproj" }
+# ---- Load XML and pick a single PropertyGroup safely ----
+[xml]$xml = Get-Content -LiteralPath $csprojFull
+$ns  = $xml.DocumentElement.NamespaceURI
 
-[xml]$xml = Get-Content $Csproj
-$ns = $xml.Project.NamespaceURI
-$pg = $xml.Project.PropertyGroup
-if (-not $pg) { $pg = $xml.CreateElement("PropertyGroup", $ns); $xml.Project.AppendChild($pg) | Out-Null }
+# Ensure there is at least one <PropertyGroup>
+$pgNodes = @($xml.Project.PropertyGroup)
+if (-not $pgNodes -or $pgNodes.Count -eq 0) {
+  $newPg = $xml.CreateElement("PropertyGroup", $ns)
+  [void]$xml.Project.AppendChild($newPg)
+  $pg = $newPg
+} else {
+  $pg = $pgNodes[0]   # use the first PG; adjust if you want a specific one
+}
 
-function Set-Node([xml]$x, $parent, $name, $value) {
-  $node = $parent.$name
-  if (-not $node) { $node = $x.CreateElement($name, $ns); $parent.AppendChild($node) | Out-Null }
+# Helper: get or create a child element by local-name() (namespace-agnostic)
+function Set-ElementValue {
+  param(
+    [xml]$doc,
+    [System.Xml.XmlElement]$parent,
+    [string]$name,
+    [string]$value,
+    [string]$nsUri
+  )
+  $node = $parent.SelectSingleNode("./*[local-name()='$name']")
+  if (-not $node) {
+    $node = $doc.CreateElement($name, $nsUri)
+    [void]$parent.AppendChild($node)
+  }
   $node.InnerText = $value
 }
 
+# Helper: read a child element value by local-name()
+function Get-ElementValue {
+  param(
+    [System.Xml.XmlElement]$parent,
+    [string]$name
+  )
+  $n = $parent.SelectSingleNode("./*[local-name()='$name']")
+  if ($n) { return $n.InnerText } else { return $null }
+}
+
 if (-not $IsPre) {
-  # Stable: bump all fields to BaseVer (with downgrade guard)
-  $current = $pg.Version.InnerText
-  if ($current) {
-    [version]$curVer = $current
+  # ----- STABLE: bump all fields to BaseVer (with downgrade guard) -----
+  $currentText = Get-ElementValue -parent $pg -name "Version"
+  if ($currentText) {
+    [version]$curVer = $currentText
     if ($curVer -gt $Base) { throw "Refusing to downgrade Version from $curVer to $Base" }
   }
-  Set-Node $xml $pg "Version" $BaseVer
-  Set-Node $xml $pg "AssemblyVersion" $AsmVer
-  Set-Node $xml $pg "FileVersion" $AsmVer
-  Set-Node $xml $pg "InformationalVersion" $BaseVer
+  Set-ElementValue -doc $xml -parent $pg -name "Version"              -value $BaseVer -nsUri $ns
+  Set-ElementValue -doc $xml -parent $pg -name "AssemblyVersion"      -value $AsmVer  -nsUri $ns
+  Set-ElementValue -doc $xml -parent $pg -name "FileVersion"          -value $AsmVer  -nsUri $ns
+  Set-ElementValue -doc $xml -parent $pg -name "InformationalVersion" -value $BaseVer -nsUri $ns
   Write-Host "Stable: Version=$BaseVer Assembly/File=$AsmVer Info=$BaseVer"
 }
 else {
-  # Pre-release: keep <Version> as current stable; set Info to full; Assembly/File to base numeric
-  Set-Node $xml $pg "AssemblyVersion" $AsmVer
-  Set-Node $xml $pg "FileVersion" $AsmVer
-  Set-Node $xml $pg "InformationalVersion" $Version
+  # ----- PRE-RELEASE: keep <Version>, set Info to full, Assembly/File to base numeric -----
+  Set-ElementValue -doc $xml -parent $pg -name "AssemblyVersion"      -value $AsmVer  -nsUri $ns
+  Set-ElementValue -doc $xml -parent $pg -name "FileVersion"          -value $AsmVer  -nsUri $ns
+  Set-ElementValue -doc $xml -parent $pg -name "InformationalVersion" -value $Version -nsUri $ns
   Write-Host "Pre-release: Info=$Version Assembly/File=$AsmVer (Version unchanged)"
 }
 
-$xml.Save($Csproj)
+$xml.Save($csprojFull)
 
-# Build & zip so @semantic-release/github can upload it
-Write-Host "Building $Csproj ($Configuration, $Rid, $Tfm)"
-$publishRoot = Join-Path (Split-Path -Parent $Csproj) "bin/$Configuration/$Tfm/$Rid/publish"
-dotnet publish $Csproj `
+# ---- Build & zip publish output ----
+Write-Host "Building $csprojFull ($Configuration, $Rid, $Tfm)"
+$publishRoot = Join-Path $projDir "bin/$Configuration/$Tfm/$Rid/publish"
+
+dotnet publish $csprojFull `
   -c $Configuration `
   -r $Rid `
   --self-contained true `
@@ -60,7 +94,11 @@ dotnet publish $Csproj `
   -p:PublishTrimmed=false `
   -p:IncludeNativeLibrariesForSelfExtract=true
 
-if (-not (Test-Path $publishRoot)) { throw "Publish output not found at $publishRoot" }
+if (-not (Test-Path -LiteralPath $publishRoot)) {
+  throw "Publish output not found at $publishRoot"
+}
 
-if (Test-Path "BootWorkspace.zip") { Remove-Item -Force "BootWorkspace.zip" }
-Compress-Archive -Path "$publishRoot/*" -DestinationPath "BootWorkspace.zip"
+$zipPath = Join-Path $projDir "BootWorkspace.zip"
+if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $zipPath
+Write-Host "Zipped to $zipPath"
