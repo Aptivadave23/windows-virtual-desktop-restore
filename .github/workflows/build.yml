@@ -47,14 +47,16 @@ jobs:
           dotnet-version: '8.x'
 
       - name: Install semantic-release + plugins
+        shell: pwsh
         run: |
-          npm i -D semantic-release \
-                 @semantic-release/commit-analyzer \
-                 @semantic-release/release-notes-generator \
-                 @semantic-release/changelog \
-                 @semantic-release/exec \
-                 @semantic-release/git \
-                 @semantic-release/github
+            npm i -D semantic-release `
+            '@semantic-release/commit-analyzer' `
+            '@semantic-release/release-notes-generator' `
+            '@semantic-release/changelog' `
+            '@semantic-release/exec' `
+            '@semantic-release/git' `
+            '@semantic-release/github'
+
 
       - name: Run semantic-release
         env:
