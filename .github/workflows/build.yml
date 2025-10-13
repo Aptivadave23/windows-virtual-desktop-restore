@@ -1,64 +1,109 @@
 ﻿name: Build & Release
 permissions:
-  contents: write   # create tags, commits, releases
+  contents: write
+  pull-requests: write
 
 on:
-  push:
-    branches: [main, beta]  # main = stable, beta = pre-releases
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches: [main, beta]
   workflow_dispatch: {}
 
 jobs:
-  # PRs: compile only (no release)
-  build:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.x' }
-      - name: Restore
-        shell: pwsh
-        run: dotnet restore ./StartUp.sln
-      - name: Build
-        shell: pwsh
-        run: dotnet build ./StartUp.sln -c Release --no-restore
-
-  # Pushes to main/beta (or manual dispatch): semantic-release drives everything
-  release:
-    if: ${{ github.event_name != 'pull_request' }}
+  build_and_release:
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # semantic-release needs tags/history
+        with: { fetch-depth: 0 }
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Set up .NET
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
+        with: { dotnet-version: '8.x' }
 
-      - name: Install semantic-release + plugins
+      # ✅ Build runs on BOTH PRs and pushes (incl. pushing to main)
+      - name: Build (restore + compile)
         shell: pwsh
         run: |
-            npm i -D semantic-release `
+          dotnet restore ./StartUp.sln
+          dotnet build ./StartUp.sln -c Release --no-restore
+      # (Optional) add tests:
+      # - name: Test
+      #   shell: pwsh
+      #   run: dotnet test ./StartUp.sln -c Release --no-build --nologo
+
+      # ---- Release path (push to main/beta) ----
+      - name: Setup Node
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/setup-node@v4
+        with: { node-version: 'lts/*' }
+
+      - name: Install semantic-release + plugins
+        if: ${{ github.event_name == 'push' }}
+        shell: pwsh
+        run: |
+          npm i -D semantic-release `
             '@semantic-release/commit-analyzer' `
             '@semantic-release/release-notes-generator' `
             '@semantic-release/changelog' `
             '@semantic-release/exec' `
-            '@semantic-release/git' `
             '@semantic-release/github'
 
-
       - name: Run semantic-release
+        if: ${{ github.event_name == 'push' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
+
+      - name: Read release version
+        if: ${{ github.event_name == 'push' }}
+        id: relver
+        shell: pwsh
+        run: |
+          if (Test-Path .next-release-version) {
+            $v = Get-Content .next-release-version -Raw
+            "version=$v" >> $env:GITHUB_OUTPUT
+          } else { "version=" >> $env:GITHUB_OUTPUT }
+
+      # ---- Optional direct commit (you only) via GitHub App bypass ----
+      - name: Get GitHub App token (optional)
+        if: ${{ github.event_name == 'push' && steps.relver.outputs.version != '' }}
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        continue-on-error: true
+
+      - name: Direct commit & push (if bypass allowed)
+        if: ${{ github.event_name == 'push' && steps.relver.outputs.version != '' && steps.app-token.outputs.token != '' }}
+        id: directpush
+        shell: pwsh
+        run: |
+          git config user.name  "version-bump-bot"
+          git config user.email "version-bump-bot@users.noreply.github.com"
+          git add CHANGELOG.md StartUp.csproj
+          if (-not (git diff --cached --name-only)) { "pushed=true" >> $env:GITHUB_OUTPUT; exit 0 }
+          git commit -m "chore(release): ${{ steps.relver.outputs.version }}"
+          git remote set-url origin https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ github.repository }}.git
+          git push origin HEAD:${{ github.ref_name }}
+          if ($LASTEXITCODE -eq 0) { "pushed=true" >> $env:GITHUB_OUTPUT } else { "pushed=false" >> $env:GITHUB_OUTPUT }
+
+      # ---- Fallback: open a release PR with the bumped files ----
+      - name: Create release PR (fallback)
+        if: ${{ github.event_name == 'push' && steps.relver.outputs.version != '' && (steps.app-token.outputs.token == '' || steps.directpush.outputs.pushed != 'true') }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "chore(release): ${{ steps.relver.outputs.version }}"
+          commit-message: "chore(release): ${{ steps.relver.outputs.version }}"
+          body: "Autogenerated changelog and version bump for ${{ steps.relver.outputs.version }}."
+          branch: "release/${{ steps.relver.outputs.version }}"
+          base: ${{ github.ref_name }}   # PR back to main or beta that triggered the release
+          add-paths: |
+            CHANGELOG.md
+            StartUp.csproj
+          labels: |
+            automated
+            release
