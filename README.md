@@ -200,3 +200,4 @@ SPDX-License-Identifier: Unlicense
 ## Credits
 
 - Virtual desktop wrapper: [`Slions.VirtualDesktop`](https://www.nuget.org/packages/Slions.VirtualDesktop)
+beta Mon Oct 13 19:52:22 CDT 2025
