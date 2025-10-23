@@ -12,6 +12,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using System.Globalization;
+using ABI.Windows.ApplicationModel.Core;
+using Startup;
 using StartUp;
 internal static class Program
 {
@@ -29,7 +31,7 @@ internal static class Program
             File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Another instance is already running. Exiting.{Environment.NewLine}");
             return;
         }
-        
+
 
         try
         {
@@ -37,8 +39,8 @@ internal static class Program
             //Debounce quick repeat runs (e.g., if Explorer crashes and restarts)
             if (ShouldExitDueToRecentRun(InstallDir, seconds: 300))
             {
-                File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Recent run detected. Exiting.{Environment.NewLine}");
-                mtx?.Dispose();
+                File.AppendAllText(logPath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Recent run detected. Exiting.{Environment.NewLine}");
                 return;
             }
 
@@ -50,7 +52,8 @@ internal static class Program
 
             //wait for explorer to be running (so virtual desktops are available)
             WaitForExplorerReady();
-            File.AppendAllText(logPath, $"Explorer is running. Current desktop index: {GetCurrentIndex()}{Environment.NewLine}");
+            File.AppendAllText(logPath,
+                $"Explorer is running. Current desktop index: {GetCurrentIndex()}{Environment.NewLine}");
 
             //--install/uninstall handlers--//
             if (args.Length > 0 && args[0].Equals("--install", StringComparison.OrdinalIgnoreCase))
@@ -59,11 +62,13 @@ internal static class Program
                 InstallSelf(cfgArg);
                 return;
             }
+
             if (args.Length > 0 && args[0].Equals("--uninstall", StringComparison.OrdinalIgnoreCase))
             {
                 UninstallSelf();
                 return;
             }
+
             //get the config file that specifies what to launch and where to launch it
             var configFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workspace.json");
             File.AppendAllText(logPath, $"BaseDir={AppDomain.CurrentDomain.BaseDirectory}\nConfig={configFile}\n");
@@ -80,45 +85,47 @@ internal static class Program
             File.AppendAllText(logPath, $"Desktops(after)={WindowsDesktop.VirtualDesktop.GetDesktops().Length}\n");
 
             // read config and launch apps
-            foreach (var app in cfg.Apps)
-            {
-                // switch to the requested desktop for the app
-                var index = ParseDesktop(app.Desktop, cfg);
-                SwitchToDesktopIndex(index);
+            //foreach (var app in cfg.Apps)
+            //{
+            //    // switch to the requested desktop for the app
+            //    var index = ParseDesktop(app.Desktop, cfg);
+            //    SwitchToDesktopIndex(index);
 
-                //launch app
-                var exe = ResolveExe(app.Path);
-                if (string.IsNullOrWhiteSpace(exe))
-                {
-                    Console.Error.WriteLine($"Skipping app '{app.Name}': no path specified.");
-                    continue;
-                }
-                var psi = new ProcessStartInfo {UseShellExecute = true};
+            //    //launch app
+            //    var exe = ResolveExe(app.Path);
+            //    if (string.IsNullOrWhiteSpace(exe))
+            //    {
+            //        Console.Error.WriteLine($"Skipping app '{app.Name}': no path specified.");
+            //        continue;
+            //    }
+            //    var psi = new ProcessStartInfo {UseShellExecute = true};
 
-                if(LooksLikeUri(exe))
-                {
-                    //e.g., micros-edge:https://www.bing.com, or shell:AppsFolder\...
-                    psi.FileName = exe;
-                }
-                else
-                {
-                    //normal exe path or something on PATH (e.g., "notepad.exe")
-                    psi.FileName = exe;
-                    psi.WorkingDirectory = Path.GetDirectoryName(exe)!;
-                    if (!string.IsNullOrWhiteSpace(app.Args)) psi.Arguments = app.Args!;
-                }
+            //    if(LooksLikeUri(exe))
+            //    {
+            //        //e.g., micros-edge:https://www.bing.com, or shell:AppsFolder\...
+            //        psi.FileName = exe;
+            //    }
+            //    else
+            //    {
+            //        //normal exe path or something on PATH (e.g., "notepad.exe")
+            //        psi.FileName = exe;
+            //        psi.WorkingDirectory = Path.GetDirectoryName(exe)!;
+            //        if (!string.IsNullOrWhiteSpace(app.Args)) psi.Arguments = app.Args!;
+            //    }
 
-                if (!LooksLikeUri(exe) && !File.Exists(psi.FileName))
-                {
-                    File.AppendAllText(logPath, $"[SKIP] Not found:  {exe}\n");
-                    continue;
-                }
-                File.AppendAllText(logPath, $"Launching '{app.Name}' on desktop idx={index}: {exe} {app.Args}\n");
-                Process.Start(psi);
+            //    if (!LooksLikeUri(exe) && !File.Exists(psi.FileName))
+            //    {
+            //        File.AppendAllText(logPath, $"[SKIP] Not found:  {exe}\n");
+            //        continue;
+            //    }
+            //    File.AppendAllText(logPath, $"Launching '{app.Name}' on desktop idx={index}: {exe} {app.Args}\n");
+            //    Process.Start(psi);
 
-                if(cfg.LaunchDelayMs > 0) Thread.Sleep(cfg.LaunchDelayMs);
-            }
-            
+            //    if(cfg.LaunchDelayMs > 0) Thread.Sleep(cfg.LaunchDelayMs);
+            //}
+
+            Launcher(cfg, logPath, 500);
+
         }
         catch (Exception ex)
         {
@@ -128,8 +135,32 @@ internal static class Program
         }
         finally
         {
-            mtx?.ReleaseMutex();
-            mtx?.Dispose();
+            if (mtx != null)
+            {
+                try
+                {
+                    mtx.ReleaseMutex();
+                }
+                catch (ObjectDisposedException)
+                {
+                    //ignore
+                }
+                catch (ApplicationException)
+                {
+                    //ignore   
+                }
+                finally
+                {
+                    try
+                    {
+                        mtx.Dispose();
+                    }
+                    catch
+                    {
+                        //ignore
+                    }
+                }
+            }
         }
     }
 
@@ -395,8 +426,96 @@ internal static class Program
                 return i;
         return -1;
     }
+    /// <summary>
+    /// launches apps as per config, switching to the appropriate desktop for each app.  Makes sure to stay on current desktop while all apps are launched before switching away.
+    /// </summary>
+    /// <param name="cfg"></param>
+    /// <param name="logPath"></param>
+    /// <param name="settleDelayMS"></param>
+    /// <param name="ct"></param>
+    private static void Launcher(WorkspaceConfig cfg, string logPath, int settleDelayMS = 400, CancellationToken ct = default)
+    {
+        var currentIdx = GetCurrentIndex();
+        var desktopOrder = BuildDesktopOrder(cfg, currentIdx);
 
+        foreach (var dIdx in desktopOrder)
+        {
+            ct.ThrowIfCancellationRequested();
 
+            // Activate the desktop once, then do all of its apps
+            SwitchToDesktopIndex(dIdx);
+            if(settleDelayMS > 0) Sleep(settleDelayMS); //let the desktop switch settle
+
+            var appsForDesktop = cfg.Apps
+                .Where(a => ParseDesktop(a.Desktop, cfg) == dIdx)
+                //optonal:  slow/critical apps (like Outlook) first
+                .OrderByDescending(a => a.WaitForWindow)
+                .ThenBy(a => a.Name)
+                .ToList();
+
+            foreach (var app in appsForDesktop)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var exe = ResolveExe(app.Path);
+                if (string.IsNullOrWhiteSpace(exe))
+                {
+                    Console.Error.WriteLine($"Skipping app '{app.Name}':  no path specified");
+                    continue;
+                }
+
+                var psi = new ProcessStartInfo { UseShellExecute = true };
+
+                if (LooksLikeUri(exe))
+                {
+                    //e.g., edge:, shell:AppsFolder\...
+                    psi.FileName = exe;
+                }
+                else
+                {
+                    psi.FileName = exe;
+                    var wd = Path.GetDirectoryName(exe);
+                    if (!string.IsNullOrEmpty(wd)) psi.WorkingDirectory = wd;
+                    if(!string.IsNullOrWhiteSpace(app.Args)) psi.Arguments = app.Args!;
+                }
+
+                if (!LooksLikeUri(exe) && !File.Exists(psi.FileName))
+                {
+                    File.AppendAllText(logPath, $"[SKIP] Not found:  {exe}{Environment.NewLine}");
+                    continue;
+                }
+
+                File.AppendAllText(logPath, $"Launching '{app.Name}' on desktop index={dIdx}:  {exe} {app.Args}{Environment.NewLine}");
+
+                var process = Process.Start(psi);
+
+                //optionally wait for a window to appear (e.g., for Outlook to finish starting)
+                if (app.WaitForWindow)
+                    WaitForWindow(process, app, logPath,
+                        timeoutMS: app.LaunchTimeoutMs > 0 ? app.LaunchTimeoutMs : 45000);
+                if (cfg.LaunchDelayMs > 0) Sleep(cfg.LaunchDelayMs);
+
+            }
+        }
+    }
+
+    private static IEnumerable<int> BuildDesktopOrder(WorkspaceConfig cfg, int currentIdx)
+    {
+        var allTargets = cfg.Apps
+            .Select(a => ParseDesktop(a.Desktop, cfg))
+            .Distinct()
+            .ToList();
+
+        if (currentIdx >= 0 && allTargets.Contains(currentIdx))
+        {
+            yield return currentIdx;
+            foreach (var i in allTargets.Where(i => i != currentIdx))
+                yield return i;
+        }
+        else
+            foreach (var i in allTargets)
+                yield return i;
+    }
     // helpers//
 
     /// <summary>
@@ -536,6 +655,29 @@ internal static class Program
 
         Process.Start(psi);
         return true;
+    }
+
+    private static void WaitForWindow(Process? p, AppCfg app, string logPath, int timeoutMS = 45000)
+    {
+        if (p == null) return;
+        try
+        {
+            p.WaitForInputIdle(Math.Min(8000, timeoutMS));
+        }
+        catch
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < timeoutMS)
+            {
+                p.Refresh();
+                if (p.MainWindowHandle != IntPtr.Zero)
+                    return;
+                Thread.Sleep(150);
+            }
+
+
+            File.AppendAllText(logPath, $"[WARN] {app.Name} window not detected within {timeoutMS}ms{Environment.NewLine}");
+        }
     }
 
 
