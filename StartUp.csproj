@@ -1,21 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
-	  <ImplicitUsings>enable</ImplicitUsings>
-	  <Version>0.0.2</Version>
-	  <AssemblyVersion>0.0.2.0</AssemblyVersion>
-	  <FileVersion>0.0.2.0</FileVersion>
-	  <InformationalVersion>0.0.2</InformationalVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.0.3</Version>
+    <AssemblyVersion>0.0.3.0</AssemblyVersion>
+    <FileVersion>0.0.3.0</FileVersion>
+    <InformationalVersion>0.0.3</InformationalVersion>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Slions.VirtualDesktop" Version="6.9.2" />
-	  <Content Include="workspace.json">
-		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </Content>
+    <Content Include="workspace.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
-
 </Project>
