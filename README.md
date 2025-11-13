@@ -200,3 +200,5 @@ SPDX-License-Identifier: Unlicense
 ## Credits
 
 - Virtual desktop wrapper: [`Slions.VirtualDesktop`](https://www.nuget.org/packages/Slions.VirtualDesktop)
+- Spectre.Console: [`Spectre.Console`](https://spectreconsole.net/)
+- Figgle (ASCII Art): [`Figgle`](https://github.com/drewnoakes/figgle)
