@@ -1,3 +1,10 @@
+# [0.1.0](https://github.com/Aptivadave23/windows-virtual-desktop-restore/compare/v0.0.3...v0.1.0) (2025-11-13)
+
+
+### Features
+
+* add visualizations to the console output ([#25](https://github.com/Aptivadave23/windows-virtual-desktop-restore/issues/25)) ([70cd52b](https://github.com/Aptivadave23/windows-virtual-desktop-restore/commit/70cd52bdadb69630aca2e5f2e7e1e6ea57897e14)), closes [#4](https://github.com/Aptivadave23/windows-virtual-desktop-restore/issues/4)
+
 ## [0.0.3](https://github.com/Aptivadave23/windows-virtual-desktop-restore/compare/v0.0.2...v0.0.3) (2025-10-23)
 
 
