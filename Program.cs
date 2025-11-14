@@ -644,6 +644,7 @@ internal static class Program
         );
 
         AnsiConsole.MarkupLine("[bold green]✅ Launch sequence complete.  Party on, Wayne!  Party on, Garth![/]");
+        AnsiConsole.WriteLine();
     }
 
     private static IEnumerable<int> BuildDesktopOrder(WorkspaceConfig cfg, int currentIdx)
