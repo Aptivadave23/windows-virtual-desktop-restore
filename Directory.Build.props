@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Redirect outputs to user profile to avoid ACL issues; MSBuild appends Configuration/TFM -->
+    <BaseIntermediateOutputPath>$(UserProfile)\startUp-artifacts\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(UserProfile)\startUp-artifacts\bin\$(MSBuildProjectName)\</BaseOutputPath>
+  </PropertyGroup>
+</Project>
