@@ -32,10 +32,9 @@ jobs:
         run: |
           dotnet restore ./StartUp.sln
           dotnet build ./StartUp.sln -c Release --no-restore
-      # (Optional) add tests:
-      # - name: Test
-      #   shell: pwsh
-      #   run: dotnet test ./StartUp.sln -c Release --no-build --nologo
+      - name: Test (Release)
+        shell: pwsh
+        run: dotnet test ./StartUp.sln -c Release --no-build --nologo --logger "trx"
 
       # ---- Release path (only on push to main/beta) ----
       - name: Setup Node
